@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Deep RL expliqué · DQN · Policy · Actor-Critic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;--soft:#f5f6f3;--card:#ffffff;--line:#e6e8e2;--line2:#eef0ea;
+    --ink:#181d27;--ink2:#39424f;--muted:#6b7685;
+    --amber:#b8820f;--amber-f:#e6a92b;--amber-bg:#fdf6e6;
+    --violet:#6644c4;--violet-f:#8a6ee0;--violet-bg:#f3effc;
+    --teal:#107f6e;--teal-f:#27a892;--teal-bg:#e7f6f2;
+    --coral:#d65a3f;--coral-bg:#fdeee9;
+    --disp:'Bricolage Grotesque',system-ui,sans-serif;--sans:'DM Sans',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px 90px}
+
+  /* header */
+  header{padding:42px 0 8px}
+  .kicker{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--coral);font-weight:600}
+  h1{font-family:var(--disp);font-weight:800;font-size:clamp(2.1rem,6.5vw,3.5rem);line-height:1.02;letter-spacing:-.02em;margin:.28em 0 .2em}
+  .sub{color:var(--muted);max-width:60ch;font-size:1.05rem}
+
+  /* sticky nav */
+  nav.tabs{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);display:flex;gap:4px;flex-wrap:wrap;margin:26px 0 30px;border-bottom:1px solid var(--line);padding:6px 0}
+  .tab{font-family:var(--mono);font-size:.78rem;font-weight:600;letter-spacing:.02em;background:none;border:0;color:var(--muted);padding:11px 14px;cursor:pointer;border-bottom:2.5px solid transparent;transition:.15s;border-radius:7px 7px 0 0}
+  .tab:hover{color:var(--ink);background:var(--soft)}
+  .tab.active{color:var(--ac,var(--coral));border-bottom-color:var(--ac,var(--coral))}
+  .tab.t-dqn{--ac:var(--amber)} .tab.t-pol{--ac:var(--violet)} .tab.t-acr{--ac:var(--teal)}
+
+  .view{display:none;animation:rise .45s cubic-bezier(.16,1,.3,1) both}
+  .view.show{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1}}
+
+  /* generic blocks */
+  h2{font-family:var(--disp);font-weight:800;font-size:clamp(1.7rem,4.5vw,2.3rem);letter-spacing:-.01em;line-height:1.05}
+  h2 .ac{color:var(--ac,var(--coral))}
+  h3{font-family:var(--disp);font-weight:700;font-size:1.18rem;letter-spacing:-.005em;margin-bottom:4px}
+  .sect-tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ac,var(--coral));font-weight:600}
+  .essence{font-size:1.18rem;font-weight:600;color:var(--ink);margin:14px 0 10px;max-width:62ch;line-height:1.4}
+  .essence b{color:var(--ac,var(--coral))}
+  .plain{color:var(--ink2);max-width:65ch}
+  p{margin-bottom:2px}
+
+  .block{margin:30px 0}
+  .label{font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+  .label::before{content:"";width:22px;height:2px;background:var(--ac,var(--coral))}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:0 10px 30px -22px rgba(20,30,50,.4)}
+  .soft{background:var(--soft);border-radius:16px;padding:24px}
+
+  /* how-it-works steps (clickable accordion) */
+  .acc-hint{font-family:var(--mono);font-size:.76rem;color:var(--muted);margin-bottom:6px}
+  .acc{border:1px solid var(--line);border-radius:13px;background:var(--card);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+  .acc.open{border-color:var(--ac);box-shadow:0 10px 26px -18px var(--ac)}
+  .acc-head{width:100%;display:grid;grid-template-columns:34px 1fr 20px;gap:15px;align-items:center;padding:15px 17px;background:none;border:0;cursor:pointer;text-align:left;font-family:var(--sans);transition:background .15s}
+  .acc-head:hover{background:var(--ac-bg)}
+  .acc-head .n{width:34px;height:34px;border-radius:9px;background:var(--ac-bg);color:var(--ac);font-family:var(--disp);font-weight:800;display:grid;place-items:center;font-size:1.05rem}
+  .acc-sum{color:var(--ink2);font-size:.97rem} .acc-sum b{color:var(--ink)}
+  .chev{color:var(--ac);transition:transform .25s;font-size:.85rem;justify-self:center}
+  .acc.open .chev{transform:rotate(180deg)}
+  .acc-body{max-height:0;overflow:hidden;transition:max-height .35s ease}
+  .acc-inner{padding:2px 18px 17px 66px;color:var(--ink2);font-size:.93rem;line-height:1.68}
+  .acc-inner b{color:var(--ink)}
+  .acc-inner .mini{font-family:var(--mono);font-size:.78rem;background:var(--soft);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;margin-top:11px;color:var(--ink);line-height:1.5}
+  .acc-inner .tip{margin-top:11px;border-left:3px solid var(--ac);padding:2px 0 2px 13px}
+  .acc-inner ul{margin:9px 0 0;padding-left:18px} .acc-inner li{margin-bottom:5px}
+  @media(max-width:600px){.acc-inner{padding-left:18px}}
+  .steps{display:grid;gap:11px}
+  .step{display:grid;grid-template-columns:34px 1fr;gap:15px;align-items:start;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 17px}
+  .step .n{width:34px;height:34px;border-radius:9px;background:var(--ac-bg);color:var(--ac);font-family:var(--disp);font-weight:800;display:grid;place-items:center;font-size:1.05rem}
+  .step .tx b{color:var(--ink)} .step .tx{color:var(--ink2);font-size:.97rem}
+  #dqn-tab{--ac:var(--amber);--ac-f:var(--amber-f);--ac-bg:var(--amber-bg)}
+  #pol-tab{--ac:var(--violet);--ac-f:var(--violet-f);--ac-bg:var(--violet-bg)}
+  #acr-tab{--ac:var(--teal);--ac-f:var(--teal-f);--ac-bg:var(--teal-bg)}
+
+  /* demo stage */
+  .stage{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 10px 30px -22px rgba(20,30,50,.4)}
+  .stage .cap{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin-bottom:16px}
+  .btn{font-family:var(--mono);font-size:.8rem;letter-spacing:.03em;text-transform:uppercase;background:var(--ac,var(--coral));color:#fff;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;font-weight:600;transition:.16s}
+  .btn:hover{filter:brightness(1.07);transform:translateY(-2px);box-shadow:0 8px 18px -8px var(--ac,var(--coral))}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink2)}
+  .btn.ghost:hover{border-color:var(--muted);box-shadow:none;filter:none}
+  .ctrls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .hint{font-family:var(--mono);font-size:.73rem;color:var(--muted)}
+
+  .abars{display:grid;gap:11px}
+  .abar{display:grid;grid-template-columns:46px 1fr 56px;align-items:center;gap:12px}
+  .abar .lab{font-family:var(--mono);font-size:1.05rem;text-align:center;color:var(--ink2)}
+  .track{height:24px;background:var(--soft);border-radius:8px;overflow:hidden;border:1px solid var(--line2)}
+  .track i{display:block;height:100%;border-radius:8px;width:0;background:var(--ac-f,var(--coral));transition:width .6s cubic-bezier(.16,1,.3,1)}
+  .abar .val{font-family:var(--mono);font-size:.82rem;color:var(--muted);text-align:right}
+  .abar.best .track{box-shadow:0 0 0 2px var(--ac) inset}
+  .abar.best .lab{color:var(--ac);font-weight:700}
+  .crown{margin-left:5px;opacity:0;transition:.3s} .abar.best .crown{opacity:1}
+  .picked{animation:pp .6s ease} @keyframes pp{0%{box-shadow:0 0 0 0 var(--ac)}60%{box-shadow:0 0 0 6px transparent}}
+  .buffer{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .cell{width:28px;height:20px;border-radius:5px;background:var(--soft);border:1px solid var(--line);transition:.25s}
+  .cell.lit{background:var(--amber-f);box-shadow:0 0 10px -2px var(--amber-f);transform:scale(1.12)}
+  .feedback{min-height:22px;font-family:var(--mono);font-size:.82rem;margin-top:14px;color:var(--ink2)}
+  .pos{color:var(--teal)} .neg{color:var(--coral)}
+  svg{display:block;width:100%}
+  .numline{height:128px;margin-top:4px}
+
+  /* actor critic */
+  .ac-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:13px;align-items:center}
+  @media(max-width:600px){.ac-grid{grid-template-columns:1fr}}
+  .box{border:1px solid var(--line);border-radius:13px;padding:15px;background:var(--card)}
+  .box.actor{border-color:#d9cdf3} .box.critic{border-color:#c2e6dd}
+  .box .ttl{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:9px;font-weight:600}
+  .box.actor .ttl{color:var(--violet)} .box.critic .ttl{color:var(--teal)}
+  .vbig{font-family:var(--disp);font-weight:800;font-size:1.9rem;color:var(--teal)}
+  .advbadge{text-align:center;font-family:var(--mono);font-size:.74rem;padding:10px;border-radius:12px;border:1.5px dashed var(--line);min-width:116px}
+  .advbadge .av{font-family:var(--disp);font-size:1.5rem;font-weight:800;display:block;color:var(--muted)}
+  .advbadge.good{border-color:var(--teal);background:var(--teal-bg)} .advbadge.good .av{color:var(--teal)}
+  .advbadge.bad{border-color:var(--coral);background:var(--coral-bg)} .advbadge.bad .av{color:var(--coral)}
+  .miniprobs{display:grid;gap:6px;margin-top:4px}
+  .mp{display:grid;grid-template-columns:24px 1fr 36px;align-items:center;gap:8px;font-family:var(--mono);font-size:.76rem;color:var(--ink2)}
+  .mp .t{height:13px;background:var(--soft);border-radius:5px;overflow:hidden;border:1px solid var(--line2)}
+  .mp .t i{display:block;height:100%;background:var(--violet-f);width:0;transition:width .5s}
+  .calc{font-family:var(--mono);font-size:.8rem;color:var(--ink2);margin-top:14px;line-height:1.85;background:var(--soft);padding:13px 15px;border-radius:11px}
+  .calc b{color:var(--ink)}
+
+  /* when to use + strengths */
+  .usegrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+  @media(max-width:600px){.usegrid{grid-template-columns:1fr}}
+  .ucard{border:1px solid var(--line);border-radius:13px;padding:16px 18px;background:var(--card)}
+  .ucard .h{font-family:var(--disp);font-weight:700;font-size:1rem;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .ucard ul{list-style:none;display:grid;gap:7px}
+  .ucard li{font-size:.92rem;color:var(--ink2);padding-left:20px;position:relative}
+  .ucard.yes li::before{content:"✓";position:absolute;left:0;color:var(--teal);font-weight:700}
+  .ucard.no li::before{content:"✕";position:absolute;left:0;color:var(--coral);font-weight:700}
+  .ucard.yes .h{color:var(--teal)} .ucard.no .h{color:var(--coral)}
+
+  .specrow{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px}
+  .spec{font-family:var(--mono);font-size:.74rem;border:1px solid var(--line);border-radius:30px;padding:6px 13px;color:var(--ink2);background:var(--card)}
+  .spec b{color:var(--ac,var(--coral))}
+  .ex{font-family:var(--mono);font-size:.75rem;color:var(--muted);margin-top:14px}
+  .ex b{color:var(--ink2)}
+
+  /* overview */
+  .ov3{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:6px}
+  @media(max-width:620px){.ov3{grid-template-columns:1fr}}
+  .ovc{border:1px solid var(--line);border-radius:14px;padding:18px;cursor:pointer;transition:.18s;border-top:4px solid var(--c)}
+  .ovc:hover{transform:translateY(-4px);box-shadow:0 14px 34px -22px rgba(20,30,50,.5)}
+  .ovc .ic{font-size:1.6rem} .ovc .nm{font-family:var(--disp);font-weight:800;font-size:1.15rem;margin:6px 0 2px}
+  .ovc .role{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--c);font-weight:600}
+  .ovc .ds{font-size:.9rem;color:var(--ink2);margin-top:8px}
+  .ovc.dqn{--c:var(--amber)} .ovc.pol{--c:var(--violet)} .ovc.acr{--c:var(--teal)}
+  .flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:.82rem;color:var(--ink2);background:var(--soft);border-radius:13px;padding:16px 18px;margin-top:4px}
+  .flow b{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 11px;color:var(--ink);font-weight:600}
+  .flow .ar{color:var(--coral);font-weight:700}
+
+  /* comparison table */
+  .tbl{width:100%;border-collapse:collapse;font-size:.9rem;overflow:hidden;border-radius:13px;border:1px solid var(--line)}
+  .tbl th,.tbl td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
+  .tbl thead th{background:var(--ink);color:#fff;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+  .tbl tbody th{font-family:var(--mono);font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:var(--soft);font-weight:600}
+  .tbl .cdqn{color:var(--amber);font-weight:600} .tbl .cpol{color:var(--violet);font-weight:600} .tbl .cacr{color:var(--teal);font-weight:600}
+  .tbl tr:last-child td,.tbl tr:last-child th{border-bottom:0}
+  .tblwrap{overflow-x:auto}
+
+  .tree{display:grid;gap:10px;margin-top:6px}
+  .tnode{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--card)}
+  .tnode .q{font-family:var(--disp);font-weight:700;font-size:1rem;margin-bottom:8px}
+  .tnode .a{font-size:.92rem;color:var(--ink2);padding:6px 0;border-top:1px dashed var(--line2)}
+  .tnode .a b{font-family:var(--mono);font-size:.78rem}
+  .badge-dqn{color:var(--amber)} .badge-pol{color:var(--violet)} .badge-acr{color:var(--teal)}
+
+  footer{text-align:center;color:var(--muted);font-family:var(--mono);font-size:.74rem;margin-top:40px;letter-spacing:.04em;padding-top:24px;border-top:1px solid var(--line)}
+  footer b{color:var(--coral)}
+  ::selection{background:var(--coral);color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Apprentissage par Renforcement Profond</div>
+    <h1>Les 3 familles du Deep RL,<br>expliquées clairement</h1>
+    <p class="sub">Comment chacune fonctionne, quand l'utiliser, et ce qui les distingue — avec des démos que tu peux manipuler.</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="ov-tab">Vue d'ensemble</button>
+    <button class="tab t-dqn" data-view="dqn-tab">01 · DQN</button>
+    <button class="tab t-pol" data-view="pol-tab">02 · Policy</button>
+    <button class="tab t-acr" data-view="acr-tab">03 · Actor-Critic</button>
+    <button class="tab" data-view="cmp-tab">Comparaison</button>
+  </nav>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <section class="view show" id="ov-tab">
+    <div class="block">
+      <div class="sect-tag">Le point de départ</div>
+      <h2>Un seul problème, trois réponses</h2>
+      <p class="plain" style="margin-top:10px">Dans tous les cas, un <b>agent</b> observe un <b>état</b>, choisit une <b>action</b>, reçoit une <b>récompense</b>, et recommence. Son but : maximiser la récompense cumulée dans le temps. Les trois familles ne diffèrent pas sur le problème — elles diffèrent sur <b>ce que le réseau de neurones apprend à représenter</b>.</p>
+      <div class="flow" style="margin-top:16px">
+        <b>État s</b><span class="ar">→</span><b>Action a</b><span class="ar">→</span><b>Récompense r</b><span class="ar">→</span><b>Nouvel état s′</b><span class="ar">↻</span>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Les trois écoles de pensée</div>
+      <div class="ov3">
+        <div class="ovc dqn" data-go="dqn-tab"><div class="ic">🎯</div><div class="role">Basé sur la valeur</div><div class="nm">DQN</div><div class="ds">Apprend la <b>note</b> Q(s,a) de chaque action, puis prend la mieux notée.</div></div>
+        <div class="ovc pol" data-go="pol-tab"><div class="ic">🎲</div><div class="role">Basé sur la politique</div><div class="nm">Policy Network</div><div class="ds">Apprend <b>directement</b> quelle action jouer, sous forme de probabilités.</div></div>
+        <div class="ovc acr" data-go="acr-tab"><div class="ic">🎭</div><div class="role">Hybride</div><div class="nm">Actor-Critic</div><div class="ds">Un <b>acteur</b> agit, un <b>critique</b> l'évalue pour le corriger sans bruit.</div></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Lecture en une phrase</div>
+      <div class="soft">
+        <p class="plain" style="margin-bottom:10px"><b style="color:var(--amber)">DQN</b> dit : « je note tout, je prends le meilleur ». Problème → impossible si les actions sont continues.</p>
+        <p class="plain" style="margin-bottom:10px"><b style="color:var(--violet)">Policy</b> dit : « j'agis directement ». Résout le continu, mais souffre d'une <b>forte variance</b>.</p>
+        <p class="plain"><b style="color:var(--teal)">Actor-Critic</b> dit : « j'agis ET un critique me corrige ». Corrige la variance du Policy en réimportant l'idée de valeur du DQN. Le pont entre les trois est la <b>fonction d'avantage A = Q − V</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DQN ===================== -->
+  <section class="view" id="dqn-tab">
+    <div class="sect-tag">01 · Basé sur la Valeur · 🎯</div>
+    <h2>DQN — <span class="ac">noter chaque action</span></h2>
+    <p class="essence">« Si je connais la <b>valeur</b> de chaque action, je n'ai pas besoin d'apprendre à agir : je prends simplement la mieux notée. »</p>
+
+    <div class="block">
+      <div class="label">Comment ça marche</div>
+      <div class="steps">
+        <p class="acc-hint">Clique sur chaque étape pour le détail 👇</p>
+        <div class="acc"><button class="acc-head"><span class="n">1</span><span class="acc-sum">Le réseau reçoit l'<b>état</b> s (ex. l'image du jeu).</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            L'état est l'observation brute : pixels d'une image, vecteur de capteurs, position d'un robot… Pour un jeu Atari, on empile <b>4 images consécutives</b> pour que le réseau perçoive le mouvement (vitesse, direction). Un réseau <b>convolutionnel</b> en extrait automatiquement les caractéristiques utiles.
+            <div class="tip">Le réseau ne connaît <b>jamais les règles</b> du jeu : il ne dispose que de l'observation et de la récompense. Tout le reste est appris par essais-erreurs.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">2</span><span class="acc-sum">Il sort une <b>note Q(s,a)</b> pour chaque action, en un seul passage.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            La sortie n'est pas un seul nombre, mais un <b>vecteur</b> : une note par action. Q(s,a) représente le <b>retour total espéré</b> si l'on joue l'action a maintenant, puis de façon optimale ensuite.
+            <div class="mini">Q(s, ↑) = 72 · Q(s, ↓) = 31 · Q(s, ←) = 45 · Q(s, →) = 18</div>
+            <div class="tip">Calculer toutes les notes en <b>un seul passage</b> rend le arg max instantané — mais cela impose un <b>nombre fini d'actions</b>. C'est la raison profonde du « discret uniquement ».</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">3</span><span class="acc-sum">Pour agir : on prend la meilleure note, <b>a = arg maxₐ Q(s,a)</b>.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            La politique est <b>déterministe</b> et <b>implicite</b> : il n'y a pas de réseau de politique séparé, on lit juste la plus grande note.
+            <div class="tip">Pour explorer, on utilise <b>ε-greedy</b> : avec une probabilité ε on joue une action au hasard, sinon on prend l'arg max. ε part de ~1 (exploration totale) et décroît vers ~0,05. Sans exploration, l'agent resterait bloqué sur de mauvaises habitudes sans jamais découvrir mieux.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">4</span><span class="acc-sum">Apprentissage : cible TD + <b>Replay Buffer</b> + <b>réseau-cible</b>.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            On transforme l'apprentissage en régression : rapprocher Q(s,a) de sa cible.
+            <div class="mini">cible y = r + γ · maxₐ′ Q(s′,a′)   ·   perte = (y − Q(s,a))²</div>
+            Deux astuces rendent cela stable :
+            <ul>
+              <li><b>Replay Buffer</b> : on stocke des millions de transitions et on tire des mini-lots <b>aléatoires</b> → casse la corrélation temporelle et réutilise les données (off-policy).</li>
+              <li><b>Réseau-cible</b> : une copie <b>figée</b> du réseau calcule la cible, recopiée tous les C pas → évite de « courir après une cible mouvante ».</li>
+            </ul>
+            <div class="tip">Le maxₐ′ a tendance à <b>surestimer</b> les valeurs (biais d'optimisme) → corrigé par <b>Double DQN</b>.</div>
+          </div></div></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Essaie : le réseau apprend à noter</div>
+      <div class="stage">
+        <div class="cap">Les 4 barres = les notes Q des 4 actions. Lance des étapes : les notes montent vers leur vraie valeur, et la 👑 marque l'action choisie (arg max).</div>
+        <div class="abars" id="dqn-bars"></div>
+        <div class="feedback" id="dqn-fb">Notes brutes au départ. Clique « Étape d'apprentissage » pour les affiner.</div>
+        <div style="margin-top:16px"><div class="hint" style="margin-bottom:7px">Replay Buffer — chaque étape tire 3 cellules <b>au hasard</b> (décorrélation)</div><div class="buffer" id="dqn-buf"></div></div>
+        <div class="ctrls"><button class="btn" id="dqn-learn">▶ Étape d'apprentissage</button><button class="btn ghost" id="dqn-new">Nouvel état</button></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Quand l'utiliser</div>
+      <div class="usegrid">
+        <div class="ucard yes"><div class="h">👍 Idéal pour</div><ul>
+          <li>Des actions <b>discrètes et peu nombreuses</b> (boutons d'un jeu, choix finis)</li>
+          <li>Quand chaque interaction <b>coûte cher</b> : le replay buffer réutilise les données (off-policy)</li>
+          <li>Environnements type Atari, recommandation, routage</li></ul></div>
+        <div class="ucard no"><div class="h">👎 À éviter si</div><ul>
+          <li>Les actions sont <b>continues</b> (le arg max sur un infini d'actions est impraticable)</li>
+          <li>Tu n'as ni replay buffer ni réseau-cible → instable</li>
+          <li>L'optimum est une politique <b>stochastique</b></li></ul></div>
+      </div>
+      <div class="specrow">
+        <span class="spec">Actions : <b>discrètes</b></span><span class="spec">Type : <b>off-policy</b></span><span class="spec">Apprend : <b>Q(s,a)</b></span>
+      </div>
+      <div class="ex"><b>Algos :</b> DQN · Double DQN · Dueling DQN · Prioritized Replay · Rainbow</div>
+    </div>
+  </section>
+
+  <!-- ===================== POLICY ===================== -->
+  <section class="view" id="pol-tab">
+    <div class="sect-tag">02 · Basé sur la Politique · 🎲</div>
+    <h2>Policy Network — <span class="ac">agir directement</span></h2>
+    <p class="essence">« Pas de détour par la valeur. Mon réseau sort directement une <b>probabilité</b> par action. J'échantillonne, puis je renforce ce qui a marché. »</p>
+
+    <div class="block">
+      <div class="label">Comment ça marche</div>
+      <div class="steps">
+        <p class="acc-hint">Clique sur chaque étape pour le détail 👇</p>
+        <div class="acc"><button class="acc-head"><span class="n">1</span><span class="acc-sum">Le réseau reçoit l'<b>état</b> s.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            Même type d'entrée que le DQN (image, capteurs, position…). Ici le réseau s'appelle <b>réseau de politique</b> πθ.
+            <div class="tip">Différence de philosophie fondamentale : il ne cherche pas à <b>juger</b> les actions (comme DQN), il les <b>propose</b> directement.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">2</span><span class="acc-sum">Il sort une <b>distribution de probabilité</b> sur les actions.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            La sortie encode « à quel point chaque action est probable » :
+            <ul>
+              <li>Actions <b>discrètes</b> → couche <b>softmax</b> → des probabilités qui somment à 1 (ex. ↑ 50%, → 30%, ← 15%, ↓ 5%).</li>
+              <li>Actions <b>continues</b> → le réseau sort la <b>moyenne μ</b> et l'<b>écart-type σ</b> d'une gaussienne.</li>
+            </ul>
+            <div class="tip">C'est <b>exactement</b> ce qui permet le contrôle continu (angle de braquage, vitesse, couple moteur) — impossible avec le arg max du DQN.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">3</span><span class="acc-sum">Pour agir : on <b>échantillonne</b> une action, a ~ πθ(·|s).</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            Comportement <b>stochastique</b> : un même état peut produire des actions différentes selon le tirage.
+            <div class="tip">Deux bénéfices majeurs : l'<b>exploration est naturelle</b> (pas besoin d'ε-greedy), et c'est <b>optimal</b> quand le hasard est la bonne stratégie — pierre-feuille-ciseaux, ou tout environnement à information cachée.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">4</span><span class="acc-sum">Apprentissage : le <b>gradient de politique</b>.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            On ajuste θ pour rendre les bonnes actions plus probables (montée de gradient).
+            <div class="mini">∇J(θ) = E[ ∇ log πθ(a|s) · Gₜ ]</div>
+            Intuition : si l'action a mené à un <b>bon</b> retour Gₜ, on <b>augmente</b> sa probabilité ; si le retour est mauvais, on la <b>diminue</b> — le tout proportionnellement au résultat obtenu.
+            <div class="tip">REINFORCE est <b>Monte-Carlo</b> (il attend la fin de l'épisode pour connaître Gₜ) et <b>on-policy</b> (les données sont jetées après chaque mise à jour). Comme Gₜ est très bruité → <b>forte variance</b>. C'est ce défaut qui mène à l'idée de baseline → la fonction d'avantage → l'Actor-Critic.</div>
+          </div></div></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Essaie : la politique se forme</div>
+      <div class="stage">
+        <div class="cap">Une action est secrètement « la bonne ». Échantillonne : bon résultat → sa probabilité monte ; mauvais → elle baisse. L'instinct se construit.</div>
+        <div class="abars" id="pol-bars"></div>
+        <div class="feedback" id="pol-fb"></div>
+        <div class="ctrls"><button class="btn" id="pol-sample">🎲 Échantillonner</button><button class="btn ghost" id="pol-auto">Auto ×15</button><button class="btn ghost" id="pol-reset">Réinitialiser</button></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Le cas continu (ce que DQN ne peut pas faire)</div>
+      <div class="stage">
+        <div class="cap">Le réseau sort une gaussienne. On échantillonne dessus. Les bons tirages (près de la cible corail) attirent la moyenne μ.</div>
+        <div class="numline"><svg id="pol-gauss" viewBox="0 0 700 128" preserveAspectRatio="none"></svg></div>
+        <div class="ctrls"><button class="btn" id="pol-csample">Échantillonner (continu)</button></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Quand l'utiliser</div>
+      <div class="usegrid">
+        <div class="ucard yes"><div class="h">👍 Idéal pour</div><ul>
+          <li>Des actions <b>continues</b> (angle, vitesse, couple) ou très nombreuses</li>
+          <li>Quand une politique <b>stochastique</b> est nécessaire (jeux à information imparfaite)</li>
+          <li>Quand on dispose de <b>beaucoup</b> de données / simulations</li></ul></div>
+        <div class="ucard no"><div class="h">👎 À éviter si</div><ul>
+          <li>Les données sont <b>rares</b> : on-policy, on jette les données après chaque pas</li>
+          <li>Tu veux un apprentissage rapide et stable → la <b>variance</b> rend lent</li>
+          <li>Tu cherches l'optimum global garanti (convergence seulement <b>locale</b>)</li></ul></div>
+      </div>
+      <div class="specrow">
+        <span class="spec">Actions : <b>discrètes ou continues</b></span><span class="spec">Type : <b>on-policy</b></span><span class="spec">Apprend : <b>π(a|s)</b></span>
+      </div>
+      <div class="ex"><b>Algos :</b> REINFORCE · Vanilla Policy Gradient · PG + baseline</div>
+    </div>
+  </section>
+
+  <!-- ===================== ACTOR-CRITIC ===================== -->
+  <section class="view" id="acr-tab">
+    <div class="sect-tag">03 · Hybride · 🎭</div>
+    <h2>Actor-Critic — <span class="ac">agir, et être corrigé</span></h2>
+    <p class="essence">« L'<b>Acteur</b> choisit l'action. Le <b>Critique</b> me dit si c'était mieux ou pire que prévu. Ce verdict — l'<b>avantage</b> — me corrige sans tout le bruit du hasard. »</p>
+
+    <div class="block">
+      <div class="label">Comment ça marche</div>
+      <div class="steps">
+        <p class="acc-hint">Clique sur chaque étape pour le détail 👇</p>
+        <div class="acc"><button class="acc-head"><span class="n">1</span><span class="acc-sum">Deux réseaux : un <b>Acteur</b> π(a|s) et un <b>Critique</b> V(s).</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            La famille fusionne les deux précédentes :
+            <ul>
+              <li>L'<b>Acteur</b> πθ — la politique, exactement comme dans Policy Network.</li>
+              <li>Le <b>Critique</b> V_w — la fonction de valeur, comme dans DQN.</li>
+            </ul>
+            <div class="tip">Souvent, ce sont <b>deux têtes</b> qui partagent le même tronc de réseau. L'acteur décide, le critique évalue.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">2</span><span class="acc-sum">L'acteur <b>choisit l'action</b>, comme une méthode Policy.</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            L'acteur <b>échantillonne</b> l'action dans sa distribution : a ~ πθ(·|s).
+            <div class="tip">Comme l'acteur est une politique, l'Actor-Critic gère <b>aussi bien le discret que le continu</b> — il hérite de la souplesse du Policy Network.</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">3</span><span class="acc-sum">Le critique calcule l'<b>avantage</b> A = (r + γ·V(s′)) − V(s).</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            L'avantage répond à une seule question : « cette action était-elle <b>meilleure que la moyenne</b> attendue dans cet état ? »
+            <div class="mini">A = (r + γ · V(s′)) − V(s)   (= l'erreur TD δ)</div>
+            A &gt; 0 → mieux que prévu ; A &lt; 0 → pire que prévu.
+            <div class="tip">L'avantage <b>recentre</b> le signal autour de zéro, donc sa variance est <b>bien plus faible</b> que celle du retour brut Gₜ. C'est tout le secret de la stabilité : « variance réduite grâce à l'estimation de l'avantage ».</div>
+          </div></div></div>
+        <div class="acc"><button class="acc-head"><span class="n">4</span><span class="acc-sum">Les deux apprennent ensemble (acteur par l'avantage, critique par TD).</span><span class="chev">▾</span></button>
+          <div class="acc-body"><div class="acc-inner">
+            <ul>
+              <li><b>Acteur</b> : ∇J = E[ ∇log πθ(a|s) · A ] — l'avantage remplace Gₜ → faible variance.</li>
+              <li><b>Critique</b> : minimise (r + γV(s′) − V(s))² — une régression TD, comme dans le DQN.</li>
+            </ul>
+            <div class="tip">Boucle vertueuse : meilleur critique → avantage plus fiable → meilleur acteur → meilleures données → meilleur critique. On accepte un <b>petit biais</b> (le critique reste une estimation) en échange d'une <b>grande réduction de variance</b> : c'est le compromis biais-variance, presque toujours gagnant.</div>
+          </div></div></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Essaie : la boucle acteur ↔ critique</div>
+      <div class="stage">
+        <div class="cap">L'acteur agit → le critique juge → l'avantage (vert = mieux que prévu, rouge = pire) corrige les deux.</div>
+        <div class="ac-grid">
+          <div class="box actor"><div class="ttl">🎭 Acteur — politique</div><div class="hint">Probabilités d'action</div><div class="miniprobs" id="ac-probs"></div></div>
+          <div class="advbadge" id="ac-adv"><span class="hint">Avantage A</span><span class="av">—</span></div>
+          <div class="box critic"><div class="ttl">🧮 Critique — valeur</div><div class="hint">Estimation V(s)</div><div class="vbig" id="ac-v">5.00</div></div>
+        </div>
+        <div class="calc" id="ac-calc">Clique « Une étape » : l'acteur échantillonne, l'environnement renvoie une récompense, le critique calcule A = (r + γ·V(s′)) − V(s).</div>
+        <div class="ctrls"><button class="btn" id="ac-step">▶ Une étape</button><button class="btn ghost" id="ac-auto">Auto ×12</button><button class="btn ghost" id="ac-reset">Réinitialiser</button></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Quand l'utiliser</div>
+      <div class="usegrid">
+        <div class="ucard yes"><div class="h">👍 Idéal pour</div><ul>
+          <li>Le <b>choix par défaut moderne</b> pour la plupart des problèmes sérieux</li>
+          <li>Actions <b>continues ET discrètes</b></li>
+          <li>Quand on veut à la fois <b>stabilité</b> et <b>performance</b></li></ul></div>
+        <div class="ucard no"><div class="h">👎 Coûts à connaître</div><ul>
+          <li><b>Deux réseaux</b> à entraîner et équilibrer → plus d'hyperparamètres</li>
+          <li>Un <b>léger biais</b> : le critique n'est qu'une estimation</li>
+          <li>Acteur et critique doivent progresser au même rythme</li></ul></div>
+      </div>
+      <div class="specrow">
+        <span class="spec">Actions : <b>discrètes ou continues</b></span><span class="spec">Stabilité : <b>la meilleure</b></span><span class="spec">Apprend : <b>π(a|s) + V(s)</b></span>
+      </div>
+      <div class="ex"><b>Algos :</b> A2C/A3C · <b>PPO</b> (robotique, RLHF des LLM) · <b>SAC</b> & <b>TD3</b> (contrôle continu) · DDPG</div>
+    </div>
+  </section>
+
+  <!-- ===================== COMPARISON ===================== -->
+  <section class="view" id="cmp-tab">
+    <div class="sect-tag">Synthèse</div>
+    <h2>Les différences en un coup d'œil</h2>
+
+    <div class="block">
+      <div class="label">Tableau comparatif</div>
+      <div class="tblwrap">
+      <table class="tbl">
+        <thead><tr><th>Critère</th><th>DQN</th><th>Policy Network</th><th>Actor-Critic</th></tr></thead>
+        <tbody>
+          <tr><th>Ce qu'il apprend</th><td class="cdqn">La valeur Q(s,a)</td><td class="cpol">La politique π(a|s)</td><td class="cacr">π(a|s) + valeur V(s)</td></tr>
+          <tr><th>Comment il agit</th><td>arg max Q (déterministe)</td><td>échantillonne π (stochastique)</td><td>échantillonne π (acteur)</td></tr>
+          <tr><th>Espace d'actions</th><td class="cdqn">Discret uniquement</td><td class="cpol">Discret ou continu</td><td class="cacr">Discret ou continu</td></tr>
+          <tr><th>Données</th><td class="cdqn">Off-policy (réutilise)</td><td class="cpol">On-policy (jette)</td><td>On ou off selon l'algo</td></tr>
+          <tr><th>Efficacité-échantillon</th><td class="cdqn">Élevée</td><td class="cpol">Faible</td><td>Moyenne à élevée</td></tr>
+          <tr><th>Variance / stabilité</th><td>Stable avec replay+target</td><td class="cpol">Forte variance</td><td class="cacr">Variance réduite, stable</td></tr>
+          <tr><th>Métaphore</th><td>🎯 L'évaluateur</td><td>🎲 L'instinctif</td><td>🎭 Acteur + coach</td></tr>
+          <tr><th>Exemples d'algos</th><td>Rainbow DQN</td><td>REINFORCE</td><td>PPO, SAC, TD3</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="label">Quel algorithme choisir ?</div>
+      <div class="tree">
+        <div class="tnode">
+          <div class="q">1 · Tes actions sont-elles continues ?</div>
+          <div class="a"><b class="badge-dqn">NON, discrètes →</b> DQN (et variantes : Double, Dueling, Rainbow). Excellent en efficacité-échantillon.</div>
+          <div class="a"><b>OUI, continues →</b> DQN est exclu. Va à la question 2.</div>
+        </div>
+        <div class="tnode">
+          <div class="q">2 · Qu'est-ce qui prime (en continu) ?</div>
+          <div class="a"><b class="badge-acr">Robustesse / simplicité →</b> PPO (acteur-critique on-policy, le standard).</div>
+          <div class="a"><b class="badge-acr">Efficacité en données →</b> SAC ou TD3 (acteur-critique off-policy).</div>
+          <div class="a"><b class="badge-pol">Comprendre les bases / baseline →</b> REINFORCE, puis A2C.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="soft">
+        <h3 style="margin-bottom:8px">Le fil rouge à retenir</h3>
+        <p class="plain">Les trois familles forment une <b>progression</b>, pas trois silos. DQN apprend la valeur mais bute sur le continu. Policy agit directement mais souffre de variance. Actor-Critic <b>corrige la variance du Policy en réimportant la valeur du DQN</b>. Le pont entre les trois : la fonction d'avantage <b style="color:var(--coral)">A(s,a) = Q(s,a) − V(s)</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>Comprendre le Deep RL · DQN <b>·</b> Policy <b>·</b> Actor-Critic</footer>
+</div>
+
+<script>
+/* nav */
+const tabs=[...document.querySelectorAll('.tab')],views=[...document.querySelectorAll('.view')];
+function go(id){tabs.forEach(t=>t.classList.toggle('active',t.dataset.view===id));views.forEach(v=>v.classList.toggle('show',v.id===id));window.scrollTo({top:0,behavior:'smooth'});}
+tabs.forEach(t=>t.onclick=()=>go(t.dataset.view));
+document.querySelectorAll('.ovc').forEach(c=>c.onclick=()=>go(c.dataset.go));
+
+/* clickable steps (accordion) */
+document.querySelectorAll('.acc-head').forEach(h=>h.onclick=()=>{
+  const acc=h.parentElement,body=acc.querySelector('.acc-body');
+  const open=acc.classList.toggle('open');
+  body.style.maxHeight=open?body.scrollHeight+'px':'0';
+});
+
+/* ---- DQN ---- */
+const ACT=['↑','↓','←','→'];let dT=[],dQ=[];
+const dB=document.getElementById('dqn-bars'),dBuf=document.getElementById('dqn-buf'),dFb=document.getElementById('dqn-fb');
+function dNew(){dT=ACT.map(()=>Math.round(20+Math.random()*78));dQ=ACT.map(()=>Math.round(5+Math.random()*15));dRender();dFb.innerHTML='Nouvel état : les vraies valeurs ont changé, le réseau doit réapprendre.';}
+function dRender(){const b=dQ.indexOf(Math.max(...dQ));dB.innerHTML=ACT.map((a,i)=>`<div class="abar ${i===b?'best':''}"><div class="lab">${a}<span class="crown">👑</span></div><div class="track"><i style="width:${dQ[i]}%"></i></div><div class="val">Q=${dQ[i].toFixed(0)}</div></div>`).join('');}
+function dBuffer(){if(!dBuf.children.length)dBuf.innerHTML=Array.from({length:14},()=>'<div class="cell"></div>').join('');const c=[...dBuf.children];c.forEach(x=>x.classList.remove('lit'));const s=new Set();while(s.size<3)s.add(Math.floor(Math.random()*c.length));s.forEach(i=>c[i].classList.add('lit'));}
+document.getElementById('dqn-learn').onclick=()=>{dBuffer();dQ=dQ.map((q,i)=>q+0.45*(dT[i]-q));dRender();const b=ACT[dQ.indexOf(Math.max(...dQ))];dFb.innerHTML=`Étape TD : chaque Q glisse vers sa cible <span class="hint">Q ← Q + α(cible − Q)</span>. Action = arg max → <b style="color:var(--amber)">${b}</b>.`;};
+document.getElementById('dqn-new').onclick=dNew;dNew();dBuffer();
+
+/* ---- POLICY discrete ---- */
+let pP=[],pTrue=0;const pB=document.getElementById('pol-bars'),pFb=document.getElementById('pol-fb');
+function pReset(){pP=[.25,.25,.25,.25];pTrue=Math.floor(Math.random()*4);pRender();pFb.innerHTML='Probabilités égales. Découvre la bonne action en échantillonnant.';}
+function pRender(k=-1){pB.innerHTML=ACT.map((a,i)=>`<div class="abar"><div class="lab">${a}</div><div class="track"><i style="width:${(pP[i]*100).toFixed(0)}%"></i></div><div class="val">${(pP[i]*100).toFixed(0)}%</div></div>`).join('');if(k>=0){const e=pB.children[k].querySelector('.track');e.classList.add('picked');setTimeout(()=>e.classList.remove('picked'),600);}}
+function pSample(){let r=Math.random(),a=0,k=0;for(let i=0;i<4;i++){a+=pP[i];if(r<=a){k=i;break;}}const good=k===pTrue?Math.random()<.85:Math.random()<.2;pP[k]=Math.max(.02,pP[k]+(good?.14:-.10));const s=pP.reduce((x,y)=>x+y,0);pP=pP.map(p=>p/s);pRender(k);pFb.innerHTML=`Action <b>${ACT[k]}</b> → ${good?'<span class="pos">récompense positive ✓</span>, probabilité <b>augmentée</b>':'<span class="neg">récompense faible ✗</span>, probabilité <b>diminuée</b>'}.`;}
+document.getElementById('pol-sample').onclick=pSample;document.getElementById('pol-reset').onclick=pReset;
+document.getElementById('pol-auto').onclick=()=>{let n=0;const id=setInterval(()=>{pSample();if(++n>=15)clearInterval(id);},230);};pReset();
+
+/* ---- POLICY continuous ---- */
+const gs=document.getElementById('pol-gauss');let mu=300,sg=92;const tgt=470;
+function gauss(sx){const W=700,B=110;let p='M0,'+B;for(let x=0;x<=W;x+=6){const y=B-80*Math.exp(-((x-mu)**2)/(2*sg*sg));p+=` L${x},${y.toFixed(1)}`;}p+=` L${W},${B} Z`;const dot=sx!=null?`<circle cx="${sx}" cy="${B}" r="6" fill="var(--coral)"><animate attributeName="cy" from="${B-66}" to="${B}" dur=".4s"/></circle>`:'';gs.innerHTML=`<line x1="0" y1="${B}" x2="${W}" y2="${B}" stroke="var(--line)"/><path d="${p}" fill="rgba(138,110,224,.16)" stroke="var(--violet-f)" stroke-width="2"/><line x1="${mu}" y1="${B}" x2="${mu}" y2="26" stroke="var(--violet-f)" stroke-dasharray="4 4"/><text x="${mu}" y="18" fill="var(--violet)" font-family="monospace" font-size="12" text-anchor="middle">μ</text><line x1="${tgt}" y1="${B}" x2="${tgt}" y2="32" stroke="var(--coral)" stroke-width="2"/><text x="${tgt}" y="24" fill="var(--coral)" font-family="monospace" font-size="11" text-anchor="middle">cible</text>${dot}`;}
+document.getElementById('pol-csample').onclick=()=>{const s=mu+(Math.random()*2-1)*sg*.9+(Math.random()*2-1)*sg*.3;const sx=Math.max(8,Math.min(692,s));gauss(sx);if(Math.abs(s-tgt)<sg){mu+=.22*(tgt-mu);sg=Math.max(36,sg*.94);}setTimeout(()=>gauss(sx),420);};gauss();
+
+/* ---- ACTOR-CRITIC ---- */
+const P0=[.34,.33,.33],RW=[8,4,1];let aP=[...P0],aV=5.0;const g=0.9;
+const aPr=document.getElementById('ac-probs'),aAdv=document.getElementById('ac-adv'),aVe=document.getElementById('ac-v'),aCalc=document.getElementById('ac-calc');const A3=['A','B','C'];
+function aR(k=-1){aPr.innerHTML=A3.map((a,i)=>`<div class="mp"><span style="${i===k?'color:var(--violet);font-weight:700':''}">${a}</span><div class="t"><i style="width:${(aP[i]*100).toFixed(0)}%"></i></div><span>${(aP[i]*100).toFixed(0)}%</span></div>`).join('');}
+function aStep(){let r=Math.random(),ac=0,k=0;for(let i=0;i<3;i++){ac+=aP[i];if(r<=ac){k=i;break;}}const rew=RW[k]+(Math.random()*2-1),Vn=4+Math.random()*3,tdT=rew+g*Vn,adv=tdT-aV;aV+=.3*(tdT-aV);aP[k]=Math.max(.02,aP[k]+.16*Math.sign(adv)*Math.min(1,Math.abs(adv)/4));const s=aP.reduce((x,y)=>x+y,0);aP=aP.map(p=>p/s);aR(k);aVe.textContent=aV.toFixed(2);const good=adv>=0;aAdv.className='advbadge '+(good?'good':'bad');aAdv.querySelector('.av').textContent=(good?'+':'')+adv.toFixed(2);aCalc.innerHTML=`Action <b>${A3[k]}</b> · r=<b>${rew.toFixed(2)}</b> · V(s′)=<b>${Vn.toFixed(2)}</b><br>A = (${rew.toFixed(2)} + 0.9·${Vn.toFixed(2)}) − ${aV.toFixed(2)} = <b style="color:${good?'var(--teal)':'var(--coral)'}">${(good?'+':'')+adv.toFixed(2)}</b> → ${good?'meilleure que prévu : l\'acteur la <b>renforce</b> 👍':'moins bonne : l\'acteur la <b>réduit</b> 👎'}.`;}
+document.getElementById('ac-step').onclick=aStep;document.getElementById('ac-auto').onclick=()=>{let n=0;const id=setInterval(()=>{aStep();if(++n>=12)clearInterval(id);},420);};
+document.getElementById('ac-reset').onclick=()=>{aP=[...P0];aV=5.0;aR();aVe.textContent='5.00';aAdv.className='advbadge';aAdv.querySelector('.av').textContent='—';aCalc.innerHTML='Réinitialisé. Clique « Une étape » pour relancer.';};aR();
+</script>
+</body>
+</html>
